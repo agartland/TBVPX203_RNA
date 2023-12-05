@@ -16,6 +16,7 @@ from myboxplot import swarmbox
 
 sns.set_style('whitegrid')
 
+
 eg_fn = opj(_fg_data, 'SCRI/TBVPX-203/RNA/2019Dec/Results/eigen_genes.csv')
 eg = pd.read_csv(eg_fn).rename({'Unnamed: 0':'sampleid'}, axis=1)
 
@@ -56,3 +57,5 @@ with PngPdfPages(opj(_fg_data, 'SCRI/TBVPX-203/RNA/2019Dec/Results/eigen_gene_pl
             swarmbox(x='Visit', y=m, connect=True, connect_on=['ptid'], data=plotdf, order=['D0', 'D3', 'D56', 'D59', 'D63', 'D112', 'D168'])
             plt.title(f'{trt}')
             pdf.savefig(figh)
+
+
