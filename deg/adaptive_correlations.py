@@ -14,11 +14,6 @@ from os.path import join as opj
 
 from fg_shared import *
 
-"""TODO:
-Make sure these correlations are done by first computing gene-wise differences (eg D56 from D59)
-and then computing averages. Previously we used module eigen values which destroys this information.
-"""
-
 sys.path.append(opj(_git, 'utils'))
 from pngpdf import PngPdfPages
 from myboxplot import swarmbox
@@ -26,20 +21,23 @@ from myboxplot import swarmbox
 #sns.set_style('whitegrid')
 mpl.rcParams['font.size'] = 12
 
-project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/2019Dec/Results')
-modules_fn = opj(project_folder, 'updated_wgcna', 'WGCNA_modules_stricter_DEG_expression.csv')
-out_folder = opj(project_folder, 'presentation_results')
-cts_fn = opj(project_folder, 'updated_wgcna', 'normalized_data_all.csv')
-res_fn = opj(project_folder, 'agregated_results_2023-MAR-15.csv')
-rx_fn = opj(_fg_data, 'SCRI/TBVPX-203/RNA/trt_pubid_2022-DEC-19.csv')
 
-res_df = pd.read_csv(res_fn)
-cts_df = pd.read_csv(cts_fn)
+project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/21Nov2023')
+modules_fn = opj(project_folder, 'wgcna', 'modules_longform_weights.csv')
+out_folder = opj(project_folder, 'correlation_results')
+scores_fn = opj(project_folder, 'wgcna', 'module_norm_cts.csv')
+rx_fn = opj(project_folder, 'trt_pubid_2023-NOV-28.csv')
+
+adata_folder = opj(_fg_data, 'SCRI/TBVPX-203/data/immune_adata')
+elisa_fn = opj(adata_folder, 'elisa_analysis2.csv')
+ics_fn = opj(adata_folder, 'ics_analysis_23.csv')
+
+
+scores_df = pd.read_csv(scores_fn)
 rx_df = pd.read_csv(rx_fn)
 
 modules_df = pd.read_csv(modules_fn)
-modules = ['turquoise', 'brown', 'green', 'yellow', 'blue','red','black']
-modules_df = modules_df[modules].stack().reset_index().rename({'level_1':'module', 0:'gene'}, axis=1)[['module', 'gene']]
+mods = modules_df['module'].unique()
 
 treatments = ['2 µg ID93 + 2 µg GLA-SE',
               '10 µg ID93 + 2 µg GLA-SE',
@@ -62,20 +60,12 @@ comparison_map = {'0_3':'Day 3 vs. 0',
                   '56_59':'Day 59 vs. 56',
                   '56_63':'Day 63 vs. 56'}
 
-cts = cts_df.set_index('Unnamed: 0')
-samples = pd.DataFrame(cts.columns, columns=['sampleid'])
-samples = samples.assign(ptid=samples['sampleid'].map(lambda s: '_'.join(s.split('_')[1:-1])),
-                         day=samples['sampleid'].map(lambda s: s.split('_')[-1]))
-samples = pd.merge(samples, rx_df, how='left', on='ptid')
+"""
+TODO:
+Open ELISA and ICS files and select index columns for one row per sample for each.
+Compute module deltas and absolute scores. Cross correlate with ELISA and ICS. (check out old 097 code?)
+Identify significant module deltas and perform an adjustment within ELISA/ICS (primary readout),
+across relevant/significant comparisons.
 
-
-day_ticks = [0, 1, 2, 3, 4, 5, 6]
-day_labels = ['0', '3', '56', '59', '63', '112', '168']
-day_map = {k:v for k,v in zip(day_labels, day_ticks)}
-
-mod_groups = [('blue', 'black', 'brown', 'red','green', 'turquoise', 'yellow'),
-              ('blue',  'brown', 'red'),
-              ('green', ),
-              ('yellow','black','turquoise')]
-
-plot_df.to_csv(opj(project_folder, 'module_norm_cts_avg.csv'))
+Heatmap of results.
+"""

@@ -9,6 +9,7 @@ import sys
 import os
 
 from os.path import join as opj
+from glob import glob
 
 import networkx as nx
 import holoviews as hv
@@ -27,23 +28,25 @@ depending on complexity.
 
 sys.path.append(opj(_git, 'utils'))
 from pngpdf import PngPdfPages
+from cluster_alignment import align_clusters
 
 #sns.set_style('whitegrid')
 
-project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/2019Dec/Results')
-modules_fn = opj(project_folder, 'updated_wgcna', 'WGCNA_modules_stricter_DEG_expression.csv')
-out_folder = opj(project_folder, 'presentation_results')
-cts_fn = opj(project_folder, 'updated_wgcna', 'normalized_data_all.csv')
-res_fn = opj(project_folder, 'agregated_results_2023-MAR-15.csv')
-rx_fn = opj(_fg_data, 'SCRI/TBVPX-203/RNA/trt_pubid_2022-DEC-19.csv')
+project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/21Nov2023')
+modules_fn = opj(project_folder, 'wgcna', 'new_wgcna_module_aligned_longform.csv')
+out_folder = opj(project_folder, 'module_results')
+cts_fn = opj(project_folder, 'log_normalized_counts.csv')
+res_fn = opj(project_folder, 'degs_day_sex', 'agg_day_sex_lme_res.csv')
+rx_fn = opj(project_folder, 'trt_pubid_2023-NOV-28.csv')
 
-res_df = pd.read_csv(res_fn)
+# res_df = pd.read_csv(res_fn)
 cts_df = pd.read_csv(cts_fn)
 rx_df = pd.read_csv(rx_fn)
 
 modules_df = pd.read_csv(modules_fn)
-modules = ['turquoise', 'brown', 'green', 'yellow', 'blue','red','black']
-modules_df = modules_df[modules].stack().reset_index().rename({'level_1':'module', 0:'gene'}, axis=1)[['module', 'gene']]
+
+# from matplotlib_venn import venn2
+# venn2([set(omodules_df['gene']), set(modules_df['gene'])], set_labels=('Old modules', 'New modules'), set_colors=('r', 'b'))
 
 treatments = ['2 µg ID93 + 2 µg GLA-SE', 'Placebo',
                '2 µg ID93 + 5 µg GLA-SE (3 Vaccine Injections)',
@@ -52,16 +55,12 @@ treatments = ['2 µg ID93 + 2 µg GLA-SE', 'Placebo',
 trt34 = ['2 µg ID93 + 5 µg GLA-SE (3 Vaccine Injections)',
                '2 µg ID93 + 5 µg GLA-SE (2 Vaccine Injections)']
 
-comparison_map = {'0_3':'Day 3 vs. 0',
-                  '56_59':'Day 59 vs. 56',
-                  '56_63':'Day 63 vs. 56'}
-
 corr_threshold = 0.6
 
-res_df = pd.merge(res_df, modules_df, how='left', on='gene')
-res_df = res_df.dropna(subset=['module'])
-sig_ind = (res_df['pvalue'] < 0.05) & (res_df['FDR'] < 0.2) & (np.abs(res_df['log2FC']) > 0.5) & (res_df['method'] == 'kimma')
-sig_df = res_df.loc[sig_ind]
+res_df = pd.read_csv(res_fn)
+sig_df = res_df.loc[(res_df['variable'] == 'day') & (res_df['cohort'] == '3,4') & res_df['sig']]
+sig_df = pd.merge(sig_df, modules_df, how='left', on='gene')
+sig_df = sig_df.dropna(subset=['module'])
 sig_genes = sig_df['gene'].unique().tolist()
 
 cts = cts_df.set_index('Unnamed: 0').loc[sig_genes]
@@ -76,10 +75,12 @@ samps34 = samples.loc[samples['Treatment_Group'].isin(trt34)]
 corr_mat = cts[samps34['sampleid']].T.corr(method='spearman')
 
 direction_colors = {'UP':'red', 'DOWN':'blue'}
-module_colors = {k:k for k in ['turquoise', 'brown', 'green', 'yellow', 'blue','red','black']}
+module_colors = {k:k for k in ['turquoise', 'brown', 'green', 'yellow', 'blue','red','black', 'grey', 'pink']}
 comparison_colors = {'Day 3 vs. 0':'magenta',
                      'Day 59 vs. 56':'red',
-                     'Day 63 vs. 56':'black'}
+                     'Day 63 vs. 56':'black',
+                     'Day 112 vs. 56':'orange',
+                     'Day 56 vs. 0':'brown'}
 
 def _create_graph(adjacency, nodes_df, edge_weights, layout='neato'):
     g = nx.Graph(adjacency)
@@ -133,10 +134,9 @@ adjacency = corr_mat.values > corr_threshold
 adjacency[np.diag_indices_from(adjacency)] = 0
 
 nodes_df = sig_df.groupby('gene').apply(lambda df: df.loc[df['log2FC'].idxmax()])
-nodes_df = nodes_df.loc[corr_mat.index, ['comparison', 'gene', 'module', 'log2FC', 'pvalue', 'FDR']]
+nodes_df = nodes_df.loc[corr_mat.index, ['Comparison', 'gene', 'module', 'log2FC', 'pvalue', 'FDR']]
 nodes_df = nodes_df.assign(logP=nodes_df['pvalue'].map(np.log10),
                             Direction=nodes_df['log2FC'].map(lambda v: {True:'UP', False:'DOWN'}[v>0]),
-                            Comparison=nodes_df['comparison'].map(comparison_map),
                             Module=nodes_df['module'])
 nodes_df = nodes_df.reset_index(drop=True)
 
@@ -159,7 +159,7 @@ with PngPdfPages(opj(out_folder, f'deg_networks.pdf')) as pdf:
     pdf.savefig(figh)
     plt.close(figh)
 
-    for mod in ['turquoise', 'brown', 'green', 'yellow', 'blue','red','black']:
+    for mod in nodes_df['module'].unique():
         mod_genes = nodes_df['gene'].loc[nodes_df['module'] == mod].tolist()
         tmp_mat = corr_mat.loc[mod_genes, :].loc[:, mod_genes]
         """Prune the genes that have too few connections"""
