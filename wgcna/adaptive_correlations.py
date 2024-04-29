@@ -29,7 +29,11 @@ plt.rcParams['axes.titlesize'] = 10
 
 """
 Rank correlations of adaptive immune data and module scores
+
+Computes "delta" correlations for ICS and ELISA using Day 56 as baseline
 """
+
+
 
 project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/21Nov2023')
 modules_fn = opj(project_folder, 'wgcna', 'modules_longform_weights.csv')
@@ -86,7 +90,7 @@ keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
 elisa = elisa.loc[elisa['visitname'].isin(keep_days) & (elisa['analyte'] == 'Total IgG')]
 elisa = elisa[ind_cols + [val_col]]
 
-elisa_0 = elisa.loc[elisa['visitname'] == 'Day 0']
+elisa_0 = elisa.loc[elisa['visitname'] == 'Day 56']
 elisa = pd.merge(elisa, elisa_0[['ptid', 'analyte', 'rx_code', 'MEPT']], how='left', on=['ptid', 'rx_code', 'analyte'], suffixes=('', '_0'))
 
 elisa = elisa.assign(delta=np.log10(elisa['MEPT']) - np.log10(elisa['MEPT_0']))
@@ -111,11 +115,11 @@ val_col = 'pctpos_adj'
 ics = ics.assign(ptid=ics['ptid'].map(lambda v: f'{v:1.0f}'[:3] + '_' + f'{v:1.0f}'[3:]),
                  visitname=ics['visitno'].map({70:'Day 70', 56:'Day 56', 224:'Day 224', 0:'Day 0'}))
 
-keep_days = ['Day 0', 'Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
 ics = ics.loc[ics['visitname'].isin(keep_days) & ics['antigen'].isin(['ID93', 'MTB 300'])]
 ics = ics[ind_cols + [val_col]]
 
-ics_0 = ics.loc[ics['visitname'] == 'Day 0']
+ics_0 = ics.loc[ics['visitname'] == 'Day 56']
 ics = pd.merge(ics, ics_0[['ptid', 'antigen', 'tcellsub', 'Treatment', 'pctpos_adj']],
                 how='left',
                 on=['ptid', 'Treatment', 'antigen', 'tcellsub'], suffixes=('', '_0'))
@@ -147,7 +151,7 @@ keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
 wbics = wbics.loc[wbics['visitname'].isin(keep_days) & wbics['antigen'].isin(['ID93'])]
 wbics = wbics[ind_cols + [val_col]]
 
-wbics_0 = wbics.loc[wbics['visitname'] == 'Day 0']
+wbics_0 = wbics.loc[wbics['visitname'] == 'Day 56']
 wbics = pd.merge(wbics, wbics_0[['ptid', 'antigen', 'tcellsub', 'Treatment', 'pctpos_adj']],
                  how='left',
                  on=['ptid', 'Treatment', 'antigen', 'tcellsub'], suffixes=('', '_0'))
@@ -216,7 +220,7 @@ res = []
 for elisa_i, elisa_gby in elisa.groupby('visitname'):
     for delta_i, delta_gby in delta.groupby(['comparison', 'module']):
         tmp = pd.merge(elisa_gby, delta_gby, how='inner', on='ptid', validate='1:1')
-        tmp_drop = tmp.dropna()
+        tmp_drop = tmp.dropna(subset=['MEPT', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['MEPT'], tmp_drop['delta'])
 
         res.append(dict(Day=elisa_i,
@@ -237,7 +241,7 @@ res = []
 for ics_i, ics_gby in ics.groupby(['visitname', 'tcellsub', 'antigen']):
     for delta_i, delta_gby in delta.groupby(['comparison', 'module']):
         tmp = pd.merge(ics_gby, delta_gby, how='inner', on='ptid', validate='1:1')
-        tmp_drop = tmp.dropna()
+        tmp_drop = tmp.dropna(subset=['pctpos_adj', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['pctpos_adj'], tmp_drop['delta'])
         res.append(dict(Day=ics_i[0],
                         day_delta=u"\u0394" in ics_i[0],
@@ -258,7 +262,7 @@ res = []
 for ics_i, ics_gby in wbics.groupby(['visitname', 'tcellsub', 'antigen']):
     for delta_i, delta_gby in delta.groupby(['comparison', 'module']):
         tmp = pd.merge(ics_gby, delta_gby, how='inner', on='ptid', validate='1:1')
-        tmp_drop = tmp.dropna()
+        tmp_drop = tmp.dropna(subset=['pctpos_adj', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['pctpos_adj'], tmp_drop['delta'])
         res.append(dict(Day=ics_i[0],
                         day_delta=u"\u0394" in ics_i[0],
@@ -399,12 +403,12 @@ for delta_lab, d_lab in [('', ''), ('_delta', u"\u0394")]:
                               col_cluster=False,
                               row_colors=color_bars,
                               dendrogram_ratio=0.01,
-                              colors_ratio=0.15,
+                              colors_ratio=0.13,
                               figsize=(3, 6))
         cobj.ax_heatmap.set_ylabel('')
         cobj.ax_heatmap.set_xlabel('')
-        cobj.fig.subplots_adjust(right=0.5)
-        cobj.ax_cbar.set_position((0.85, 0.25, 0.03, 0.4))
+        cobj.fig.subplots_adjust(right=0.4)
+        cobj.ax_cbar.set_position((0.78, 0.25, 0.03, 0.4))
         cobj.ax_cbar.set_ylabel('Rank correlation')
         pdf.savefig(cobj.figure)
         """

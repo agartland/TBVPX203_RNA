@@ -68,7 +68,7 @@ for mod in modules_df.module.unique():
     print(smf.ols(formula=f'{mod} ~ trt3', data=tmp).fit().summary())
 
 
-"""ALSO QUICK PLOTS OF EX DIFFERENCES FOR ICS< WBICS AND ELISA"""
+"""ALSO QUICK PLOTS OF SEX DIFFERENCES FOR ICS< WBICS AND ELISA"""
 
 tmp = pd.merge(ics.loc[(ics['Treatment'] == 3) & (ics['antigen'] == 'ID93') & (ics['tcellsub'] == 'CD4+')], rx_df[['sex', 'ptid']], how='left', on='ptid')
 swarmbox(x='visitname', y='pctpos_adj', hue='sex', connect=True, connect_on=['ptid'], data=tmp)
