@@ -7,33 +7,24 @@ from functools import partial
 import sys
 import os
 from scipy import stats
-import seaborn as sns
 
 from os.path import join as opj
 
 from fg_shared import *
 
 sys.path.append(opj(_git, 'utils'))
-from pngpdf import PngPdfPages
-from myboxplot import swarmbox
 from adjustwithin import adjustwithin
 from adjustwithin import adjustnonnan
+from corrplots import partialcorr
 
-#sns.set_style('whitegrid')
-mpl.rcParams['font.size'] = 8
-mpl.rcParams['figure.titlesize'] = 8
-mpl.rcParams['axes.labelsize'] = 10
-plt.rcParams['xtick.labelsize'] = 8
-plt.rcParams['ytick.labelsize'] = 8
-plt.rcParams['axes.titlesize'] = 10
+from pngpdf import PngPdfPages
+from myboxplot import swarmbox
 
 """
 Rank correlations of adaptive immune data and module scores
 
 Computes "delta" correlations for ICS and ELISA using Day 56 as baseline
 """
-
-
 
 project_folder = opj(_fg_data, 'SCRI/TBVPX-203/RNA/21Nov2023')
 modules_fn = opj(project_folder, 'wgcna', 'modules_longform_weights.csv')
@@ -57,16 +48,6 @@ treatments = ['2 µg ID93 + 2 µg GLA-SE',
               '2 µg ID93 + 5 µg GLA-SE (2 Vaccine Injections)',
               'Placebo']
 
-trt_colors = {'2 µg ID93 + 2 µg GLA-SE':'#00703c',
-              '10 µg ID93 + 2 µg GLA-SE':'#00549f',
-              '2 µg ID93 + 5 µg GLA-SE (3 Vaccine Injections)':'#ee2e24',
-              '2 µg ID93 + 5 µg GLA-SE (2 Vaccine Injections)':'#936fb1',
-              'Placebo':'#009fc3'}
-
-# trt_colors = {t:c for t,c in zip(treatments, mpl.cm.tab10.colors)}
-
-trt34 = ['2 µg ID93 + 5 µg GLA-SE (3 Vaccine Injections)',
-               '2 µg ID93 + 5 µg GLA-SE (2 Vaccine Injections)']
 
 comparison_map = {'0_3':'Day 3 vs. 0',
                   '56_59':'Day 59 vs. 56',
@@ -77,7 +58,6 @@ modnames = {'turquoise':'COREG', 'brown':'BCELL', 'blue':'MITOSIS',
             'red':'NEUTRO-II', 'black':'MONO'}
 modcolors = {v:k for k,v in modnames.items()}
 
-mod_order = ['BCELL', 'MITOSIS', 'NEUTRO-II', 'COREG', 'MONO', 'EOS', 'IFN-I','NEUTRO-I']
 
 """Load and prep ELISA data"""
 elisa = pd.read_csv(elisa_fn)
@@ -86,7 +66,7 @@ ind_cols = ['ptid', 'rx_code', 'analyte', 'visitname']
 val_col = 'MEPT'
 
 elisa = elisa.assign(ptid=elisa['ptid'].map(lambda v: f'{v:1.0f}'[:3] + '_' + f'{v:1.0f}'[3:]))
-keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 56', 'Day 70', 'Day 224']
 elisa = elisa.loc[elisa['visitname'].isin(keep_days) & (elisa['analyte'] == 'Total IgG')]
 elisa = elisa[ind_cols + [val_col]]
 
@@ -95,7 +75,7 @@ elisa = pd.merge(elisa, elisa_0[['ptid', 'analyte', 'rx_code', 'MEPT']], how='le
 
 elisa = elisa.assign(delta=np.log10(elisa['MEPT']) - np.log10(elisa['MEPT_0']))
 
-keep_days = ['Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 70', 'Day 224']
 deltas = elisa.loc[elisa['visitname'].isin(keep_days)]
 deltas.loc[:, 'MEPT'] = deltas['delta']
 deltas.loc[:, 'visitname'] = deltas['visitname'].map(lambda s: s + u"\u0394")
@@ -113,9 +93,9 @@ ind_cols = ['ptid', 'visitname', 'Treatment', 'tcellsub', 'antigen']
 val_col = 'pctpos_adj'
 
 ics = ics.assign(ptid=ics['ptid'].map(lambda v: f'{v:1.0f}'[:3] + '_' + f'{v:1.0f}'[3:]),
-                 visitname=ics['visitno'].map({70:'Day 70', 56:'Day 56', 224:'Day 224', 0:'Day 0'}))
+                 visitname=ics['visitno'].map({70:'Day 70', 56:'Day 56', 224:'Day 224', 0:'Day 0', 14:'Day 14', 28:'Day 28'}))
 
-keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 56', 'Day 70', 'Day 224']
 ics = ics.loc[ics['visitname'].isin(keep_days) & ics['antigen'].isin(['ID93', 'MTB 300'])]
 ics = ics[ind_cols + [val_col]]
 
@@ -126,7 +106,7 @@ ics = pd.merge(ics, ics_0[['ptid', 'antigen', 'tcellsub', 'Treatment', 'pctpos_a
 
 ics = ics.assign(delta=ics['pctpos_adj'] - ics['pctpos_adj_0'])
 
-keep_days = ['Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 70', 'Day 224']
 deltas = ics.loc[ics['visitname'].isin(keep_days)]
 deltas.loc[:, 'pctpos_adj'] = deltas['delta']
 deltas.loc[:, 'visitname'] = deltas['visitname'].map(lambda s: s + u"\u0394")
@@ -145,9 +125,9 @@ ind_cols = ['ptid', 'visitname', 'Treatment', 'tcellsub', 'antigen']
 val_col = 'pctpos_adj'
 
 wbics = wbics.assign(ptid=wbics['ptid'].map(lambda v: f'{v:1.0f}'[:3] + '_' + f'{v:1.0f}'[3:]),
-                     visitname=wbics['visitno'].map({70:'Day 70', 56:'Day 56', 224:'Day 224', 0:'Day 0'}))
+                     visitname=wbics['visitno'].map({70:'Day 70', 56:'Day 56', 224:'Day 224', 0:'Day 0', 14:'Day 14', 28:'Day 28'}))
 
-keep_days = ['Day 0', 'Day 56', 'Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 56', 'Day 70', 'Day 224']
 wbics = wbics.loc[wbics['visitname'].isin(keep_days) & wbics['antigen'].isin(['ID93'])]
 wbics = wbics[ind_cols + [val_col]]
 
@@ -158,7 +138,7 @@ wbics = pd.merge(wbics, wbics_0[['ptid', 'antigen', 'tcellsub', 'Treatment', 'pc
 
 wbics = wbics.assign(delta=wbics['pctpos_adj'] - wbics['pctpos_adj_0'])
 
-keep_days = ['Day 70', 'Day 224']
+keep_days = ['Day 0', 'Day 14', 'Day 28', 'Day 70', 'Day 224']
 deltas = wbics.loc[wbics['visitname'].isin(keep_days)]
 deltas.loc[:, 'pctpos_adj'] = deltas['delta']
 deltas.loc[:, 'visitname'] = deltas['visitname'].map(lambda s: s + u"\u0394")
@@ -203,6 +183,14 @@ delta = pd.concat((delta_0[cols],
                    scores_0.assign(comparison='Day 0', delta=scores_0['eigengene'])[cols],
                    scores_56.assign(comparison='Day 56', delta=scores_56['eigengene'])[cols]), axis=0)
 
+elisa = pd.merge(elisa, rx_df[['Treatment', 'sex', 'ptid']], how='left', on='ptid')
+ics = pd.merge(ics, rx_df[['sex', 'ptid']], how='left', on='ptid')
+wbics = pd.merge(wbics, rx_df[['sex', 'ptid']], how='left', on='ptid')
+
+elisa = elisa.assign(sex_female=elisa['sex'].map({'female':1, 'male':0}))
+ics = ics.assign(sex_female=ics['sex'].map({'female':1, 'male':0}))
+wbics = wbics.assign(sex_female=wbics['sex'].map({'female':1, 'male':0}))
+
 """Save the adata sets to CSV for prediction analysis"""
 elisa.to_csv(opj(adata_folder, 'elisa_adata.csv'), index=False)
 ics.to_csv(opj(adata_folder, 'ics_adata.csv'), index=False)
@@ -222,6 +210,10 @@ for elisa_i, elisa_gby in elisa.groupby('visitname'):
         tmp = pd.merge(elisa_gby, delta_gby, how='inner', on='ptid', validate='1:1')
         tmp_drop = tmp.dropna(subset=['MEPT', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['MEPT'], tmp_drop['delta'])
+        part_rho, part_pvalue = partialcorr(tmp_drop['MEPT'],
+                                  tmp_drop['delta'],
+                                  adjust=[tmp_drop['sex_female']],
+                                  method='spearman')
 
         res.append(dict(Day=elisa_i,
                         day_delta=u"\u0394" in elisa_i[0],
@@ -233,7 +225,9 @@ for elisa_i, elisa_gby in elisa.groupby('visitname'):
                         Module_n=delta_gby.dropna().shape[0],
                         n=tmp_drop.shape[0],
                         rho=rho,
-                        pvalue=pvalue))
+                        pvalue=pvalue,
+                        part_rho=part_rho,
+                        part_pvalue=part_pvalue))
 elisa_res = pd.DataFrame(res)
 
 """Repeat for ICS"""
@@ -243,6 +237,11 @@ for ics_i, ics_gby in ics.groupby(['visitname', 'tcellsub', 'antigen']):
         tmp = pd.merge(ics_gby, delta_gby, how='inner', on='ptid', validate='1:1')
         tmp_drop = tmp.dropna(subset=['pctpos_adj', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['pctpos_adj'], tmp_drop['delta'])
+        part_rho, part_pvalue = partialcorr(tmp_drop['pctpos_adj'],
+                                  tmp_drop['delta'],
+                                  adjust=[tmp_drop['sex_female']],
+                                  method='spearman')
+
         res.append(dict(Day=ics_i[0],
                         day_delta=u"\u0394" in ics_i[0],
                         tcellsub=ics_i[1],
@@ -254,7 +253,9 @@ for ics_i, ics_gby in ics.groupby(['visitname', 'tcellsub', 'antigen']):
                         Module_n=delta_gby.dropna().shape[0],
                         n=tmp_drop.shape[0],
                         rho=rho,
-                        pvalue=pvalue))
+                        pvalue=pvalue,
+                        part_rho=part_rho,
+                        part_pvalue=part_pvalue))
 ics_res = pd.DataFrame(res)
 
 """Repeat for WB ICS"""
@@ -264,6 +265,10 @@ for ics_i, ics_gby in wbics.groupby(['visitname', 'tcellsub', 'antigen']):
         tmp = pd.merge(ics_gby, delta_gby, how='inner', on='ptid', validate='1:1')
         tmp_drop = tmp.dropna(subset=['pctpos_adj', 'delta'])
         rho, pvalue = stats.spearmanr(tmp_drop['pctpos_adj'], tmp_drop['delta'])
+        part_rho, part_pvalue = partialcorr(tmp_drop['pctpos_adj'],
+                                  tmp_drop['delta'],
+                                  adjust=[tmp_drop['sex_female']],
+                                  method='spearman')
         res.append(dict(Day=ics_i[0],
                         day_delta=u"\u0394" in ics_i[0],
                         tcellsub=ics_i[1],
@@ -275,7 +280,9 @@ for ics_i, ics_gby in wbics.groupby(['visitname', 'tcellsub', 'antigen']):
                         Module_n=delta_gby.dropna().shape[0],
                         n=tmp_drop.shape[0],
                         rho=rho,
-                        pvalue=pvalue))
+                        pvalue=pvalue,
+                        part_rho=part_rho,
+                        part_pvalue=part_pvalue))
 wbics_res = pd.DataFrame(res)
 
 """Compute rank tests for deltas to identify significant modules and comparisons"""
@@ -337,14 +344,16 @@ def _apply_adj(res, keep_test, keep_ind):
                      FWERp=adjustwithin(res, pCol='FWERp', withinCols=['Day'], method='holm'),)
     return res
 
-elisa_keep_ind = elisa_res['Day'].isin(['Day 224', 'Day 224Δ', 'Day 70', 'Day 70Δ'])
+keep_days = ['Day 14', 'Day 28', 'Day 70', 'Day 70Δ', 'Day 224', 'Day 224Δ']
+
+elisa_keep_ind = elisa_res['Day'].isin(keep_days)
 elisa_res = _apply_adj(elisa_res, keep_test,
                         keep_ind=elisa_keep_ind)
-ics_keep_ind = (ics_res['antigen'] == 'ID93') & (ics_res['tcellsub'] == 'CD4+')
+ics_keep_ind = (ics_res['antigen'] == 'ID93') & (ics_res['tcellsub'] == 'CD4+') & ics_res['Day'].isin(keep_days)
 ics_res = _apply_adj(ics_res, keep_test,
                         keep_ind=ics_keep_ind)
 
-wbics_keep_ind = (wbics_res['antigen'] == 'ID93') & (wbics_res['tcellsub'] == 'CD4+')
+wbics_keep_ind = (wbics_res['antigen'] == 'ID93') & (wbics_res['tcellsub'] == 'CD4+') & wbics_res['Day'].isin(keep_days)
 wbics_res = _apply_adj(wbics_res, keep_test,
                         keep_ind=wbics_keep_ind)
 
@@ -353,134 +362,54 @@ ics_res.to_csv(opj(out_folder, 'ICS_module_correlations.csv'), index=False)
 wbics_res.to_csv(opj(out_folder, 'WB_ICS_module_correlations.csv'), index=False)
 modr.to_csv(opj(out_folder, 'module_signedrank_tests.csv'), index=False)
 
-# sns.set(font_scale=1)
-def _censor_annot(plot_df):
-    test_lambda = lambda i, v: f'{v:1.2f}' if f'{modcolors[i]}_{comp}' in keep_test else ''
-    annot = plot_df.copy()
-    for comp in ['Day 3 vs. 0', 'Day 59 vs. 56', 'Day 63 vs. 56']:
-        annot = annot.assign(**{comp:annot.reset_index().apply(lambda r: test_lambda(r['Module'], r[comp]), axis=1).values})
-    return annot
 
-for delta_lab, d_lab in [('', ''), ('_delta', u"\u0394")]:
-    with PngPdfPages(opj(out_folder, f'correlation_heatmaps{delta_lab}_fulltp.pdf')) as pdf:
-        keep_comp = [f'Day 224{d_lab}', f'Day 70{d_lab}']
-        ics_keep_ind = ics_res['Day'].isin(keep_comp) & (ics_res['antigen'] == 'ID93') & (ics_res['tcellsub'] == 'CD4+')
-        wbics_keep_ind = wbics_res['Day'].isin(keep_comp) & (wbics_res['antigen'] == 'ID93') & (wbics_res['tcellsub'] == 'CD4+')
-        elisa_keep_ind = elisa_res['Day'].isin(keep_comp)
-        base_cols = ['Day 0', 'Day 56']
-        # base_cols = []
+"""ALSO QUICK PLOTS OF SEX DIFFERENCES FOR ICS< WBICS AND ELISA"""
+test_visits = ['Day 14', 'Day 28', 'Day 70', 'Day 224']
+visits = test_visits #['Day 14', 'Day 28']
+res = []
+with PngPdfPages(opj(out_folder, f'sex_adaptive_boxplots.pdf'), dpi=200) as pdf:
+    figh = plt.figure()
+    tmp = ics.loc[ics['Treatment'].isin([3,4]) & (ics['antigen'] == 'ID93') & (ics['tcellsub'] == 'CD4+')]
+    swarmbox(x='visitname', y='pctpos_adj', hue='sex', connect=False, data=tmp.loc[tmp['visitname'].isin(visits)])
+    plt.title('PBMC-ICS ID93-specific CD4+ T cells')
+    plt.ylabel('% cells w/ \u22652 of IFN\u03b3, IL2, TNF\u03b1')
+    pdf.savefig(figh)
+    for v in test_visits:
+        tmp2 = tmp.loc[tmp['visitname'] == v].dropna()
+        s, pvalue = stats.ranksums(tmp2.loc[tmp2['sex']=='female', 'pctpos_adj'], tmp2.loc[tmp2['sex']=='male', 'pctpos_adj'])
+        res.append(dict(assay='PBMC-ICS',
+                        visit=v,
+                        pvalue=pvalue))
     
-        pics = ics_res.loc[~ics_res['Comparison'].isin(base_cols) & ics_res['test'] & ics_keep_ind].assign(Assay='PBMC-ICS')
-        pwbics = wbics_res.loc[~wbics_res['Comparison'].isin(base_cols) & wbics_res['test'] & wbics_keep_ind].assign(Assay='WB-ICS')
-        pelisa = elisa_res.loc[~elisa_res['Comparison'].isin(base_cols) & elisa_res['test'] & elisa_keep_ind].assign(Assay='ELISA')
-        
-        cols = ['Assay', 'Day', 'Module', 'Comparison', 'rho', 'FDRq', 'pvalue']
-        plot_df = pd.concat((pics[cols], pwbics[cols], pelisa[cols]), axis=0)
 
-        plot_df = plot_df.assign(Module=plot_df['Module'].map(modnames))
-        annot_df = plot_df.assign(sig=['+' if p < 0.05 else '' for p in plot_df['pvalue']])
-        
-        annot_df = annot_df.set_index(['Assay', 'Day', 'Module', 'Comparison'])['sig'].unstack(['Assay', 'Day'])
+    figh = plt.figure()
+    tmp = wbics.loc[wbics['Treatment'].isin([3,4]) & (wbics['antigen'] == 'ID93') & (wbics['tcellsub'] == 'CD4+')]
+    swarmbox(x='visitname', y='pctpos_adj', hue='sex', connect=False, data=tmp.loc[tmp['visitname'].isin(visits)])
+    plt.title('WB-ICS ID93-specific CD4+ T cells')
+    plt.ylabel('% cells w/ \u22652 of IFN\u03b3, IL2, TNF\u03b1')
+    pdf.savefig(figh)
+    for v in test_visits:
+        tmp2 = tmp.loc[tmp['visitname'] == v].dropna()
+        s, pvalue = stats.ranksums(tmp2.loc[tmp2['sex']=='female', 'pctpos_adj'], tmp2.loc[tmp2['sex']=='male', 'pctpos_adj'])
+        res.append(dict(assay='WB-ICS',
+                        visit=v,
+                        pvalue=pvalue))
+    
 
-        plot_df = plot_df.set_index(['Assay', 'Day', 'Module', 'Comparison'])['rho'].unstack(['Assay', 'Day'])
-        
-        x_order = [ ( 'ELISA',  f'Day 70{d_lab}'),
-                    (  'ELISA', f'Day 224{d_lab}'),
-                    ('PBMC-ICS',f'Day 70{d_lab}'),
-                    ('PBMC-ICS',f'Day 224{d_lab}'),
-                    ( 'WB-ICS', f'Day 70{d_lab}'),
-                    ( 'WB-ICS', f'Day 224{d_lab}')]
-        
-        tmp = plot_df[x_order].loc[mod_order]
-        color_bars = [modcolors[m] for m in tmp.index.get_level_values(0)]
-        cobj = sns.clustermap(data=tmp.reset_index(level='Module', drop=True),
-                              vmin=-0.8,
-                              vmax=0.8,
-                              cmap=mpl.cm.RdYlGn,
-                              annot=annot_df[x_order].loc[mod_order],
-                              fmt='s',
-                              row_cluster=False,
-                              col_cluster=False,
-                              row_colors=color_bars,
-                              dendrogram_ratio=0.01,
-                              colors_ratio=0.13,
-                              figsize=(3, 6))
-        cobj.ax_heatmap.set_ylabel('')
-        cobj.ax_heatmap.set_xlabel('')
-        cobj.fig.subplots_adjust(right=0.4)
-        cobj.ax_cbar.set_position((0.78, 0.25, 0.03, 0.4))
-        cobj.ax_cbar.set_ylabel('Rank correlation')
-        pdf.savefig(cobj.figure)
-        """
-        figh = plt.figure(figsize=(4, 7))
-        axh = figh.add_axes([0.24, 0.2, 0.6, 0.6])
-        cobj = sns.heatmap(data=plot_df[x_order],
-                              vmin=-0.8,
-                              vmax=0.8,
-                              cmap=mpl.cm.RdYlGn,
-                              annot=False,
-                              fmt='1.2f',
-                              ax=axh)
-        pdf.savefig(figh)
-        """
+    figh = plt.figure()
+    tmp = elisa.loc[elisa['rx_code'].isin(['T3', 'T4']) & (elisa['analyte'] == 'Total IgG')]
+    swarmbox(x='visitname', y='MEPT', hue='sex', connect=True, connect_on=['ptid'], data=tmp.loc[tmp['visitname'].isin(visits)])
+    plt.yscale('log')
+    plt.title('ELISA ID93-specific IgG')
+    pdf.savefig(figh)
+    for v in test_visits:
+        tmp2 = tmp.loc[tmp['visitname'] == v].dropna()
+        s, pvalue = stats.ranksums(tmp2.loc[tmp2['sex']=='female', 'MEPT'], tmp2.loc[tmp2['sex']=='male', 'MEPT'])
+        res.append(dict(assay='ELISA',
+                        visit=v,
+                        pvalue=pvalue))
 
-
-for tp in ['Day 70', 'Day 224']:
-    for delta_lab, d_lab in [('', ''), ('_delta', u"\u0394")]:
-        ics_keep_ind = (ics_res['Day'] == f'{tp}{d_lab}') & (ics_res['antigen'] == 'ID93') & (ics_res['tcellsub'] == 'CD4+')
-        wbics_keep_ind = (wbics_res['Day'] == f'{tp}{d_lab}') & (wbics_res['antigen'] == 'ID93') & (wbics_res['tcellsub'] == 'CD4+')
-        elisa_keep_ind = elisa_res['Day'] == f'{tp}{d_lab}'
-        with PngPdfPages(opj(out_folder, f'correlation_heatmaps{delta_lab}_{tp}.pdf')) as pdf:
-            plot_df = ics_res.loc[ics_res['Comparison'].str.contains('vs.') & ics_keep_ind]
-            plot_df = plot_df.assign(Module=plot_df['Module'].map(modnames))
-            plot_df = plot_df.set_index(['Module', 'Comparison'])['rho'].unstack('Comparison').loc[mod_order]
-            
-            figh = plt.figure(figsize=(6, 6))
-            axh = figh.add_axes([0.15, 0.15, 0.7, 0.7])
-            cobj = sns.heatmap(data=plot_df,
-                                  vmin=-0.5,
-                                  vmax=0.5,
-                                  cmap=mpl.cm.coolwarm,
-                                  annot=_censor_annot(plot_df),
-                                  fmt='s',
-                                  ax=axh)
-            plt.xlabel('Comparison')
-            plt.ylabel('Gene Module')
-            plt.title(f'PBMC-ICS {tp}{d_lab}: ' + '\n'.join(trt34))
-            pdf.savefig(figh)
-
-            plot_df = wbics_res.loc[ics_res['Comparison'].str.contains('vs.') & wbics_keep_ind]
-            plot_df = plot_df.assign(Module=plot_df['Module'].map(modnames))
-            plot_df = plot_df.set_index(['Module', 'Comparison'])['rho'].unstack('Comparison').loc[mod_order]
-            
-            figh = plt.figure(figsize=(6, 6))
-            axh = figh.add_axes([0.15, 0.15, 0.7, 0.7])
-            cobj = sns.heatmap(data=plot_df,
-                                  vmin=-0.5,
-                                  vmax=0.5,
-                                  cmap=mpl.cm.coolwarm,
-                                  annot=_censor_annot(plot_df),
-                                  fmt='s',
-                                  ax=axh)
-            plt.xlabel('Comparison')
-            plt.ylabel('Gene Module')
-            plt.title(f'WB ICS {tp}{d_lab}: ' + '\n'.join(trt34))
-            pdf.savefig(figh)
-
-            plot_df = elisa_res.loc[ics_res['Comparison'].str.contains('vs.') & elisa_keep_ind]
-            plot_df = plot_df.assign(Module=plot_df['Module'].map(modnames))
-            plot_df = plot_df.set_index(['Module', 'Comparison'])['rho'].unstack('Comparison').loc[mod_order]
-            figh = plt.figure(figsize=(6, 6))
-            axh = figh.add_axes([0.15, 0.15, 0.7, 0.7])
-            cobj = sns.heatmap(data=plot_df,
-                                  vmin=-0.5,
-                                  vmax=0.5,
-                                  cmap=mpl.cm.coolwarm,
-                                  annot=_censor_annot(plot_df),
-                                  fmt='s',
-                                  ax=axh)
-            plt.xlabel('Comparison')
-            plt.ylabel('Gene Module')
-            plt.title(f'ELISA {tp}{d_lab}: ' + '\n'.join(trt34))
-            pdf.savefig(figh)
-
+res = pd.DataFrame(res)
+res.to_csv(opj(out_folder, 'adaptive_sex_assoc.csv'))
+    
+    

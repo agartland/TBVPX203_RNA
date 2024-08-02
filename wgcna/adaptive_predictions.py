@@ -47,7 +47,7 @@ ics = pd.read_csv(opj(adata_folder, 'ics_adata.csv'))
 wbics = pd.read_csv(opj(adata_folder, 'wbics_adata.csv'))
 delta = pd.read_csv(opj(adata_folder, 'module_adata.csv'))
 
-visit_map = {'Day 224':'D224', 'Day 70':'D70', 'Day 224Δ':'D224d', 'Day 70Δ':'D70d'}
+visit_map = {'Day 224':'D224', 'Day 70':'D70', 'Day 224Δ':'D224d', 'Day 70Δ':'D70d', 'Day 14':'D14', 'Day 28':'D28', 'Day 14Δ':'D14d', 'Day 28Δ':'D28d'}
 comp_map = {'Day 3 vs. 0':'D3d', 'Day 59 vs. 56':'D59d', 'Day 63 vs. 56':'D63d', 'Day 0':'D0', 'Day 56':'D56'}
 
 datasets = {}
@@ -245,15 +245,18 @@ with PngPdfPages(opj(out_folder, f'ROC_plots.pdf')) as pdf:
         plt.close(figh)
 
 with PngPdfPages(opj(out_folder, f'scatter_plots.pdf')) as pdf:
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(4, 7))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(4, 7), gridspec_kw=dict(left=0.2))
     g = sns.scatterplot(x='gex_yellow_D59d', y='ics_D224_cont', data=feat_df, color='black', ax=ax1)
     g.axes.set_yscale('log')
     ax1.set_xlabel('IFN-I Day 59 vs. Day 56')
     ax1.set_ylabel('PBMC-ICS CD4+ T cell response\n(% cells w/ \u22652 of IFN\u03b3, IL2, TNF\u03b1)')
-    
+    ax1.set_ylim((0.01, 1))
+    ax1.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter("{x:1.3f}"))
+
     g = sns.scatterplot(x='gex_yellow_D3d', y='wbics_D224_cont', data=feat_df, color='black', ax=ax2)
     g.axes.set_yscale('log')
     ax2.set_xlabel('IFN-I Day 3 vs. Day 0')
     ax2.set_ylabel('WB-ICS CD4+ T cell response\n(% cells w/ \u22652 of IFN\u03b3, IL2, TNF\u03b1)')
-
+    ax2.set_ylim((0.01, 1))
+    ax2.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter("{x:1.3f}"))
     pdf.savefig(fig)

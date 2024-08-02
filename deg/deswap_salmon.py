@@ -44,8 +44,11 @@ Output shows that there is one clear sample swap"""
 
 """sampleid P203_903_3006_0 was swapped with P203_903_3005_0
 Confirmed based on HLA genotyping data"""
+
 swap_map = {'X203_903_3006_0':'X203_903_3005_0',
             'X203_903_3005_0':'X203_903_3006_0'}
+
+
 
 rx = pd.read_csv(rx_fn)
 cts = pd.read_csv(in_cts_fn, sep='\t')

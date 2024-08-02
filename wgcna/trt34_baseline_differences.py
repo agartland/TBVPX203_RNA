@@ -67,14 +67,3 @@ tmp = tmp.assign(trt3=tmp['Treatment'] == 3)
 for mod in modules_df.module.unique():
     print(smf.ols(formula=f'{mod} ~ trt3', data=tmp).fit().summary())
 
-
-"""ALSO QUICK PLOTS OF SEX DIFFERENCES FOR ICS< WBICS AND ELISA"""
-
-tmp = pd.merge(ics.loc[(ics['Treatment'] == 3) & (ics['antigen'] == 'ID93') & (ics['tcellsub'] == 'CD4+')], rx_df[['sex', 'ptid']], how='left', on='ptid')
-swarmbox(x='visitname', y='pctpos_adj', hue='sex', connect=True, connect_on=['ptid'], data=tmp)
-
-tmp = pd.merge(wbics.loc[(wbics['Treatment'] == 3) & (wbics['antigen'] == 'ID93') & (wbics['tcellsub'] == 'CD4+')], rx_df[['sex', 'ptid']], how='left', on='ptid')
-swarmbox(x='visitname', y='pctpos_adj', hue='sex', connect=True, connect_on=['ptid'], data=tmp)
-
-tmp = pd.merge(elisa.loc[(elisa['rx_code'] == 'T3') & (elisa['analyte'] == 'Total IgG')], rx_df[['sex', 'ptid']], how='left', on='ptid')
-swarmbox(x='visitname', y='MEPT', hue='sex', connect=True, connect_on=['ptid'], data=tmp)
